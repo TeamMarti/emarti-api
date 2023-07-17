@@ -105,6 +105,7 @@ app.post("/users/detail", async (req: Request, res: Response) => {
     res.json(createError.NotFound);
   }
 });
+
 //
 // handle 404
 app.use((req: Request, res: Response, next: Function) => {
