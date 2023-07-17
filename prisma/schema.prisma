@@ -20,19 +20,22 @@ model User {
   updatedAt     DateTime      @default(now())
   isBiometricOn Boolean       @default(false)
   pin           String?
+  appleToken    String?
   Transaction   Transaction[]
 }
 
 model Device {
-  id        String   @id @default(uuid())
-  hwid      String   @unique
-  status    Int      @default(0)
-  Station   Station  @relation(fields: [stationId], references: [id])
-  stationId String
-  gate      String
-  code      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  id                              String        @id @default(uuid())
+  hwid                            String        @unique
+  status                          Int           @default(0)
+  Station                         Station       @relation(fields: [stationId], references: [id])
+  stationId                       String
+  gate                            String
+  code                            String
+  createdAt                       DateTime      @default(now())
+  updatedAt                       DateTime      @default(now())
+  Transaction_Device_checkinGate  Transaction[] @relation("checkInGate")
+  Transaction_Device_checkOutGate Transaction[] @relation("checkOutGate")
 }
 
 model Station {
@@ -44,6 +47,8 @@ model Station {
   updatedAt                           DateTime      @default(now())
   Transaction_Station_checkInStation  Transaction[] @relation(name: "checkInStation")
   Transaction_Station_checkoutStation Transaction[] @relation(name: "checkOutStation")
+  Fare_Station_startStation           Fare[]        @relation(name: "startStation")
+  Fare_station_endStation             Fare[]        @relation(name: "endStation")
 }
 
 model Transaction {
@@ -52,10 +57,23 @@ model Transaction {
   checkOut          DateTime @default(now())
   status            Int      @default(0)
   checkInStation    Station  @relation(name: "checkInStation", fields: [checkInStationId], references: [id])
+  checkInGate       Device   @relation(name: "checkInGate", fields: [checkInGateId], references: [id])
+  checkOutGate      Device?  @relation(name: "checkOutGate", fields: [checkOutGateId], references: [id])
   checkOutStation   Station? @relation(name: "checkOutStation", fields: [checkOutStationId], references: [id])
   checkInStationId  String
   checkOutStationId String?
+  checkInGateId     String
+  checkOutGateId    String?
   amount            Decimal  @default(0)
   user              User     @relation(fields: [userId], references: [id])
   userId            String
+}
+
+model Fare {
+  id             String  @id @default(uuid())
+  startStation   Station @relation(name: "startStation", fields: [startStationId], references: [id])
+  startStationId String
+  endStation     Station @relation(name: "endStation", fields: [endStationId], references: [id])
+  endStationId   String
+  fare           Decimal
 }
