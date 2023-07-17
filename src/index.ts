@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import express, { Request, Response } from "express";
+import express, { Request, Response, response } from "express";
 import createError from "http-errors";
 import * as dotenv from "dotenv";
 import * as winston from "winston";
@@ -64,47 +64,133 @@ app.post("/users", async (req: Request, res: Response) => {
 
   res.json({ data: user });
 });
-app.post("/users/topup", async (req: Request, res: Response) => {
-  const { email, amount } = req.body;
-  logger.info(`Updating user ${email} balance with amount ${amount}`);
-  try {
-    const currentUser = await prisma.user.findFirstOrThrow({
-      where: {
-        email: email,
-      },
-    });
+app.post(
+  "/users/topup",
+  async (req: Request, res: Response, next: Function) => {
+    const { email, amount } = req.body;
+    logger.info(`Updating user ${email} balance with amount ${amount}`);
+    try {
+      const currentUser = await prisma.user.findFirstOrThrow({
+        where: {
+          email: email,
+        },
+      });
 
-    logger.info(`User Current Balance: ${currentUser.balance}`);
-    const updated = await prisma.user.update({
+      logger.info(`User Current Balance: ${currentUser.balance}`);
+      const updated = await prisma.user.update({
+        where: {
+          email: email,
+        },
+        data: {
+          balance: currentUser.balance + amount,
+        },
+      });
+
+      logger.info(`Success TopUp user`);
+      res.json({ data: updated });
+    } catch (e) {
+      logger.error(`Error TopUp User`);
+
+      next(createError.NotFound);
+    }
+  }
+);
+app.post(
+  "/users/detail",
+  async (req: Request, res: Response, next: Function) => {
+    const { email } = req.body;
+    logger.info(`Getting user details of ${email}`);
+    try {
+      const user = await prisma.user.findFirstOrThrow({
+        where: {
+          email,
+        },
+      });
+      logger.info("Success getting user detail");
+      res.json({
+        data: user,
+      });
+    } catch (e) {
+      logger.error(`Error Getting User Detail`);
+
+      next(createError.NotFound);
+    }
+  }
+);
+
+// 2. Auth
+app.post("/pin/create", async (req: Request, res: Response) => {
+  const { email, pin } = req.body;
+
+  logger.info(`Creating pin for user ${email}`);
+  try {
+    const updatePin = await prisma.user.update({
       where: {
         email: email,
       },
       data: {
-        balance: currentUser.balance + amount,
+        pin: pin,
       },
     });
 
-    res.json({ data: updated });
+    logger.info(`Success creating pin`);
+    res.json({ data: updatePin });
   } catch (e) {
+    logger.error(`Error Creating Pin`);
     res.json(createError.NotFound);
   }
 });
-app.post("/users/detail", async (req: Request, res: Response) => {
-  const { email } = req.body;
-  logger.info(`Getting user details of ${email}`);
-  try {
-    const user = await prisma.user.findFirstOrThrow({
-      where: {
-        email,
-      },
-    });
-    res.json({
-      data: user,
-    });
-  } catch (e) {
-    res.json(createError.NotFound);
+app.post(
+  "/pin/validate",
+  async (req: Request, res: Response, next: Function) => {
+    try {
+      const { email, pin } = req.body;
+      logger.info("Validating user pin");
+      const validate = await prisma.user.findFirstOrThrow({
+        where: {
+          email: email,
+        },
+      });
+      if (validate.pin === pin) {
+        logger.info("Pin Validated");
+        return res.json({
+          data: {
+            validate: true,
+          },
+        });
+      }
+      logger.info("Pin Not Valid");
+      next(createError.Unauthorized("Invalid Pin"));
+    } catch (e) {
+      logger.error(`Error Validate Pin`);
+      next(createError.NotFound);
+    }
   }
-});
+);
+app.post(
+  "/pin/biometric",
+  async (req: Request, res: Response, next: Function) => {
+    try {
+      const { email, enabled } = req.body;
+      logger.info(`Set biometric status for user ${email}`);
+      const user = await prisma.user.update({
+        where: {
+          email: email,
+        },
+        data: {
+          isBiometricOn: enabled,
+        },
+      });
+
+      logger.info(`Success set biometric status to ${enabled}`);
+      res.json({
+        data: user,
+      });
+    } catch (_) {
+      next(createError.NotFound);
+    }
+  }
+);
 
 //
 // handle 404
