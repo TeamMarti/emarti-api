@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  name          String?
+  fcmToken      String?
+  balance       Decimal       @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now())
+  isBiometricOn Boolean       @default(false)
+  pin           String?
+  Transaction   Transaction[]
+}
+
+model Device {
+  id        String   @id @default(uuid())
+  hwid      String   @unique
+  status    Int      @default(0)
+  Station   Station  @relation(fields: [stationId], references: [id])
+  stationId String
+  gate      String
+  code      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model Station {
+  id                                  String        @id @default(uuid())
+  code                                String        @unique
+  name                                String
+  device                              Device[]
+  createdAt                           DateTime      @default(now())
+  updatedAt                           DateTime      @default(now())
+  Transaction_Station_checkInStation  Transaction[] @relation(name: "checkInStation")
+  Transaction_Station_checkoutStation Transaction[] @relation(name: "checkOutStation")
+}
+
+model Transaction {
+  id                String   @id @default(uuid())
+  checkIn           DateTime @default(now())
+  checkOut          DateTime @default(now())
+  status            Int      @default(0)
+  checkInStation    Station  @relation(name: "checkInStation", fields: [checkInStationId], references: [id])
+  checkOutStation   Station? @relation(name: "checkOutStation", fields: [checkOutStationId], references: [id])
+  checkInStationId  String
+  checkOutStationId String?
+  amount            Decimal  @default(0)
+  user              User     @relation(fields: [userId], references: [id])
+  userId            String
+}
