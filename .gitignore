@@ -144,3 +144,5 @@ dist
 # End of https://www.toptal.com/developers/gitignore/api/node
 
 AuthKey_LBNV7NXA3L.p8
+prisma/migrations/*
+prisma/migration_lock.toml
