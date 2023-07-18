@@ -274,7 +274,149 @@ app.post(`/devices`, async (req: Request, res: Response, next: Function) => {
     next(createError.BadRequest());
   }
 });
-//
+// 5. Transaction
+app.post(
+  `/transactions`,
+  async (req: Request, res: Response, next: Function) => {
+    const {
+      email,
+      checkInStation,
+      checkInGate,
+      checkoutStation,
+      checkoutGate,
+    } = req.body;
+
+    let isCheckOut = false;
+    if (checkoutStation || checkoutGate) {
+      isCheckOut = true;
+    }
+    logger.info(`Creating transaction: ${isCheckOut ? "CheckIn" : "CheckOut"}`);
+
+    let now = moment();
+    try {
+      const user = await prisma.user.findFirstOrThrow({
+        where: {
+          email: email,
+        },
+      });
+
+      if (user.balance.toNumber() > 50000.0) {
+        throw new Error("Balance not exceed minimum requirement");
+      }
+      if (isCheckOut) {
+        // Checkout Sequence
+
+        const fare = await prisma.fare.findFirstOrThrow({
+          where: {
+            startStationId: checkInStation,
+            endStationId: checkoutStation,
+          },
+        });
+
+        const balance = user.balance.toNumber() - fare.fare.toNumber();
+
+        const currentTransaction = await prisma.transaction.findFirstOrThrow({
+          where: {
+            userId: user.id,
+            status: 1,
+            checkInStationId: checkInStation,
+          },
+          orderBy: {
+            checkIn: "desc",
+          },
+          take: 1,
+        });
+        const transaction = await prisma.transaction.update({
+          where: {
+            id: currentTransaction.id,
+          },
+          data: {
+            status: 2,
+            amount: fare.fare,
+            checkOutStationId: checkoutStation,
+            checkOutGateId: checkoutGate,
+          },
+        });
+
+        const updatedUser = await prisma.user.update({
+          where: {
+            email: email,
+          },
+          data: {
+            balance: balance,
+          },
+        });
+
+        res.json({ data: transaction });
+      } else {
+        // Checkin Sequence
+        const transaction = await prisma.transaction.create({
+          data: {
+            id: randomUUID(),
+            userId: user.id,
+            checkInGateId: checkInGate,
+            checkInStationId: checkInStation,
+            checkIn: now.toISOString(),
+            status: 0,
+          },
+        });
+        res.json({ data: transaction });
+      }
+    } catch (e) {
+      logger.error(e);
+      next(createError.BadRequest());
+    }
+  }
+);
+app.get(
+  `/transactions`,
+  async (req: Request, res: Response, next: Function) => {
+    const { email } = req.body;
+    logger.info(`Get user transaction data`);
+    const transaction = await prisma.transaction.findMany({
+      include: {
+        checkInStation: true,
+        checkOutStation: true,
+        checkInGate: true,
+        checkOutGate: true,
+      },
+      where: {
+        user: {
+          email: email,
+        },
+      },
+      orderBy: {
+        checkIn: "desc",
+      },
+    });
+    logger.info(`Success user transaction data`);
+
+    res.json({ data: transaction });
+  }
+);
+app.post(
+  `/transactions/verify`,
+  async (req: Request, res: Response, next: Function) => {
+    const { transactionId } = req.body;
+    logger.info(`Validate transaction ${transactionId}`);
+
+    try {
+      const transaction = await prisma.transaction.update({
+        where: {
+          id: transactionId,
+        },
+        data: {
+          status: 1,
+        },
+      });
+
+      res.json({ data: transaction });
+    } catch (e) {
+      logger.error(e);
+      next(createError.BadRequest());
+    }
+  }
+);
 // handle 404
 app.use((req: Request, res: Response, next: Function) => {
   next(createError.NotFound("Route Not Found"));
