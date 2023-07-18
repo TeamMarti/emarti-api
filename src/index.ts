@@ -5,7 +5,6 @@ import * as dotenv from "dotenv";
 import * as winston from "winston";
 import { randomUUID } from "crypto";
 import moment from "moment";
-import { timeStamp } from "console";
 
 const logger = winston.createLogger({
   level: "debug",
@@ -47,7 +46,6 @@ app.get("/users", async (req: Request, res: Response) => {
 app.post("/users", async (req: Request, res: Response) => {
   logger.info("Creating User");
   const { email, name, pin, balance } = req.body;
-  logger.debug(req.body);
   const user = await prisma.user.create({
     data: {
       id: randomUUID(),
@@ -91,7 +89,7 @@ app.post(
     } catch (e) {
       logger.error(`Error TopUp User`);
 
-      next(createError.NotFound);
+      next(createError.NotFound());
     }
   }
 );
@@ -113,7 +111,7 @@ app.post(
     } catch (e) {
       logger.error(`Error Getting User Detail`);
 
-      next(createError.NotFound);
+      next(createError.NotFound());
     }
   }
 );
@@ -137,7 +135,7 @@ app.post("/pin/create", async (req: Request, res: Response) => {
     res.json({ data: updatePin });
   } catch (e) {
     logger.error(`Error Creating Pin`);
-    res.json(createError.NotFound);
+    res.json(createError.NotFound());
   }
 });
 app.post(
@@ -163,7 +161,7 @@ app.post(
       next(createError.Unauthorized("Invalid Pin"));
     } catch (e) {
       logger.error(`Error Validate Pin`);
-      next(createError.NotFound);
+      next(createError.NotFound());
     }
   }
 );
@@ -187,11 +185,95 @@ app.post(
         data: user,
       });
     } catch (_) {
-      next(createError.NotFound);
+      next(createError.NotFound());
     }
   }
 );
 
+// 3. Station
+app.post(`/stations`, async (req: Request, res: Response, next: Function) => {
+  const { code, name } = req.body;
+  logger.info(`Creating station with name: ${name}`);
+
+  try {
+    const station = await prisma.station.create({
+      data: {
+        id: randomUUID(),
+        code: code,
+        name: name,
+        createdAt: moment().toISOString(),
+        updatedAt: moment().toISOString(),
+      },
+    });
+    logger.info("Success adding station");
+    res.json({ data: station });
+  } catch (e) {
+    logger.error(e);
+    next(createError.BadRequest());
+  }
+});
+app.get("/stations", async (req: Request, res: Response, next: Function) => {
+  const station = await prisma.station.findMany({
+    include: {
+      device: true,
+    },
+  });
+
+  res.json({ data: station });
+});
+app.post(
+  `/stations/fare`,
+  async (req: Request, res: Response, next: Function) => {
+    const { from, to, fare } = req.body;
+    logger.info(`Adding fare from ${from} to ${to} with amount ${fare}`);
+
+    try {
+      const station = await prisma.fare.create({
+        data: {
+          fare: fare,
+          startStationId: from,
+          endStationId: to,
+        },
+      });
+
+      logger.info(`Success adding fare`);
+
+      res.json({ data: station });
+    } catch (e) {
+      logger.error(e);
+      next(createError.NotFound());
+    }
+  }
+);
+
+// 4. Device
+app.post(`/devices`, async (req: Request, res: Response, next: Function) => {
+  const { hwid, status, stationId, code, gate } = req.body;
+  logger.info(
+    `Adding device ${code} of gate ${gate} into station ${stationId}`
+  );
+
+  try {
+    const device = await prisma.device.create({
+      data: {
+        id: randomUUID(),
+        hwid: hwid,
+        status: status,
+        stationId: stationId,
+        code: code,
+        gate: gate,
+        createdAt: moment().toISOString(),
+        updatedAt: moment().toISOString(),
+      },
+    });
+
+    logger.info(`Success adding device ${device.code}`);
+    res.json({ data: device });
+  } catch (e) {
+    logger.error(e);
+    next(createError.BadRequest());
+  }
+});
 //
 // handle 404
 app.use((req: Request, res: Response, next: Function) => {
