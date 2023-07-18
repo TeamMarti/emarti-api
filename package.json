@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npx nodemon ./src/index.ts",
     "migrate-prod": "npx prisma migrate deploy",
+    "build": "tsup src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -27,6 +28,7 @@
     "nodemon": "^3.0.1",
     "prisma": "^5.0.0",
     "ts-node": "^10.9.1",
+    "tsup": "^7.1.0",
     "typescript": "^5.1.6"
   }
 }
